@@ -337,23 +337,19 @@ jobs:
           echo "Changing to configuration directory: $CONFIG..."
           cd "$CONFIG"
 
-          # Check if Motorola kernel source exists
-          if [ -d "../motorola-kernel" ]; then
-            echo "Building Motorola kernel..."
-            cd ../motorola-kernel
-            # Add Motorola specific build commands here
-            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
-            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+          sed -i '$s|echo "\$res"|echo "\-青色"|' ./common/scripts/setlocalversion
+
+          # Run perl command to modify UTS_VERSION
+          perl -pi -e 's{UTS_VERSION="\$\(echo \$UTS_VERSION \$CONFIG_FLAGS \$TIMESTAMP \| cut -b -\$UTS_LEN\)"}{UTS_VERSION="#1 SMP PREEMPT Sat Apr 20 04:20:00 UTC 2024"}' ./common/scripts/mkcompile_h
+
+          echo "Building the kernel..."
+          if [ -f "build/build.sh" ]; then
+            sed -i 's/-dirty//' ./common/scripts/setlocalversion
+            LTO=${{ inputs.lto_type }} BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
           else
-            echo "Building the GKI kernel..."
-            if [ -f "build/build.sh" ]; then
-              sed -i 's/-dirty//' ./common/scripts/setlocalversion
-              LTO=${{ inputs.lto_type }} BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
-            else
-              rm -rf ./common/android/abi_gki_protected_exports_*
-              sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
-              tools/bazel build --config=fast --lto=${{ inputs.lto_type }} //common:kernel_aarch64_dist
-            fi
+            rm -rf ./common/android/abi_gki_protected_exports_*
+            sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
+            tools/bazel build --config=fast --lto=${{ inputs.lto_type }} //common:kernel_aarch64_dist
           fi
 
       - name: Create Bootimgs Folder and Copy Images
@@ -490,12 +486,3 @@ jobs:
           path: |
             *.zip
             *.img
-
-      - name: Download Motorola Kernel Source
-        run: |
-          echo "Downloading Motorola kernel source..."
-          KERNEL_VERSION="MMI-T1TR33.4-30-77"
-          wget https://github.com/MotorolaMobilityLLC/kernel-msm/archive/refs/tags/${KERNEL_VERSION}.tar.gz -O motorola-kernel.tar.gz
-          tar -xzf motorola-kernel.tar.gz
-          mv kernel-msm-${KERNEL_VERSION} motorola-kernel
-          echo "Motorola kernel source downloaded and extracted."
