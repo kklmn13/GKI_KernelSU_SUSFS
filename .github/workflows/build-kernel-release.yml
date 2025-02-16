@@ -64,10 +64,18 @@ jobs:
       kernelsu_branch: ${{ inputs.kernelsu_branch }}
       kernelsu_branch_other: ${{ inputs.kernelsu_branch_other }}
 
+  build-motorola-kernel:
+    uses: ./.github/workflows/motorola-kernel-build.yml
+    secrets: inherit
+    with:
+      runner: ${{ inputs.runner }}
+      lto_type: ${{ inputs.lto_type }}
+
   trigger-release:
     runs-on: ubuntu-latest
     needs:
         - build-kernel-a13-5-15
+        - build-motorola-kernel
     if: ${{ inputs.make_release }}
     env:
       REPO_OWNER: WildPlusKernel
@@ -290,4 +298,3 @@ jobs:
         run: |
           echo "GitHub release created with the following files:"
           ls ./downloaded-artifacts/**/*
-

@@ -1,0 +1,70 @@
+name: Motorola Kernel Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Choose runner"
+        required: true
+        type: choice
+        options:
+          - ubuntu-22.04
+          - ubuntu-22.04-local
+        default: ubuntu-22.04
+      lto_type:
+        description: "Choose LTO type (full will not run on basic runners)"
+        required: true
+        type: choice
+        options:
+          - full
+          - thin
+          - none
+        default: thin
+
+jobs:
+  build-motorola-kernel:
+    runs-on: ${{ inputs.runner }}
+
+    steps:
+      - name: Maximize build space
+        if: ${{ inputs.runner == 'ubuntu-22.04' }}
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+
+      - name: Clean up workspace
+        run: rm -rf ${{ github.workspace }}/*
+
+      - name: Download Motorola Kernel Source
+        run: |
+          echo "Downloading Motorola kernel source..."
+          KERNEL_VERSION="MMI-T1TR33.4-30-77"
+          wget https://github.com/MotorolaMobilityLLC/kernel-msm/archive/refs/tags/${KERNEL_VERSION}.tar.gz -O motorola-kernel.tar.gz
+          tar -xzf motorola-kernel.tar.gz
+          mv kernel-msm-${KERNEL_VERSION} motorola-kernel
+          echo "Motorola kernel source downloaded and extracted."
+
+      - name: Set up toolchain
+        run: |
+          echo "Setting up toolchain..."
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build Motorola Kernel
+        run: |
+          echo "Building Motorola kernel..."
+          cd motorola-kernel
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: motorola-kernel
+          path: motorola-kernel/arch/arm64/boot/Image
